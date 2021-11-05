@@ -1,0 +1,127 @@
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * @Description csv格式转换工具类
+ * 1 4个引号。你看到第一个，就从没引号进有引号状态，然后看到第二个，这时候，你不知道这个引号是第一个引号的配对，还是和第三个引号连起来的。你就需要一个新的状态
+ * 在这个状态下，如果你第三个看到的是引号，则说明是引号2连，输出一个引号，然后状态改成在引号内。否则，说明之前那个引号是结束引号，状态就改成在引号外，同时继续处理我自己
+ * 2 ps：wps和office对于/"、, 的处理不同。
+ * @Author wujiahao
+ * @Date 2021/11/3
+ **/
+public class CsvFileParseUtil {
+    /**
+     * 状态值
+     */
+    private enum LexerStage {
+        /**
+         * 开始
+         */
+        Start,
+        /**
+         * 普通
+         */
+        Common,
+        /**
+         * 引号
+         */
+        Quote,
+        /**
+         * 连续2个引号
+         */
+        DoubleQuote,
+    }
+
+    private static class Parser {
+        StringBuilder splitStr = new StringBuilder();
+        LexerStage lexerStage;
+        //返回的分割后的数组
+        List<String> splitList = new ArrayList();
+        //分隔符
+        String delim = ",";
+
+        public Parser(String delim) {
+            this.lexerStage = LexerStage.Start;
+            this.delim = delim;
+        }
+    }
+
+    private static void parseCsvLineCommonHelper(Parser parser, char curChar) {
+        if (parser.delim.equals(curChar + "")) {
+            parser.lexerStage = LexerStage.Start;
+            parser.splitList.add(parser.splitStr.toString());
+            parser.splitStr.setLength(0);
+        } else {
+            parser.splitStr.append(curChar);
+        }
+    }
+
+    private static void parseCsvLineStartHelper(Parser parser, char curChar) {
+        switch (curChar) {
+            case '"':
+                parser.lexerStage = LexerStage.Quote;
+                break;
+            default:
+                parser.lexerStage = LexerStage.Common;
+                parseCsvLineCommonHelper(parser, curChar);
+                break;
+        }
+    }
+
+    private static void parseCsvLineQuoteHelper(Parser parser, char curChar) {
+        switch (curChar) {
+            case '"':
+                parser.lexerStage = LexerStage.DoubleQuote;
+                break;
+            default:
+                parser.splitStr.append(curChar);
+                break;
+        }
+    }
+
+    private static void parseCsvLineDoubleQuoteHelper(Parser parser, char curChar) {
+        switch (curChar) {
+            case '"':
+                parser.lexerStage = LexerStage.Quote;
+                parser.splitStr.append('"');
+                break;
+            default:
+                parser.lexerStage = LexerStage.Common;
+                parseCsvLineCommonHelper(parser, curChar);
+        }
+    }
+
+    public static List<String> parseCsvLine(String csvLineStr, String delim) throws Exception {
+        Parser parser = new Parser(delim);
+
+        for (char curChar : csvLineStr.toCharArray()) {
+            switch (parser.lexerStage) {
+                case Start:
+                    parseCsvLineStartHelper(parser, curChar);
+                    break;
+                case Common:
+                    parseCsvLineCommonHelper(parser, curChar);
+                    break;
+                case Quote:
+                    parseCsvLineQuoteHelper(parser, curChar);
+                    break;
+                case DoubleQuote:
+                    parseCsvLineDoubleQuoteHelper(parser, curChar);
+                    break;
+                default:
+                    throw new Exception("Invalid LexerStage value");
+            }
+        }
+
+        parser.splitList.add(parser.splitStr.toString());
+
+        return parser.splitList;
+    }
+
+    public static void main(String[] args) throws Exception {
+        parseCsvLine(("\"4|\",|"),",").
+                stream().
+                forEach(a -> System.out.println(a));
+    }
+
+}
